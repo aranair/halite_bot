@@ -32,7 +32,7 @@ def findNearestBorderDirection(gameMap, x, y):
         newSite = gameMap.getSite(Location(x, y), d)
         count = 1
         while newSite.owner == myID and count < maxCount:
-            if currentStr < 255 and newSite.strength + currentStr > 200: 
+            if currentStr < 255 and newSite.strength + currentStr > 200:
                 count = 999
                 break
             # 2, 4, 8, 16
@@ -92,13 +92,17 @@ def findBestProduction(gameMap, x, y):
 def findBest(gameMap, x, y):
     # f = open('workfile', 'a')
     # f.write("FIND BEST: (%s, %s)\n" % (x, y))
-    global state
 
     # cached = state[x][y]
     # if type(cached) is not int:
+    #     f = open('workfile', 'a')
+    #     for s in cached:
+    #         f.write("L101: %s\n" % s)
+    #     f.close()
+
     #     # cached
     #     bestRatio, bestCost, bestDirection = cached[:3]
-    #     bestRemaining = bestCost - currentSite.strength 
+    #     bestRemaining = bestCost - currentSite.strength
     #     isFriendly = cached[3] == 'friendly'
 
     #     if bestCost < 0 and isFriendly: # friendly tile and the tile already has a target
@@ -119,7 +123,7 @@ def findBest(gameMap, x, y):
     #     #     f.write("L101: %s\n" % s)
     #     # f.close()
     #     return state[x][y]
-    
+
     # f.write("CALCULATING FOR: (%s, %s)\n" % (x, y))
 
     depth = 5
@@ -132,94 +136,62 @@ def findBest(gameMap, x, y):
         findBestRecursive(gameMap, x, y, 4, depth)
     ]
 
-    # for s in surroundings:
-    #     for item in s:
-    #       f.write("%s\n" % item)
-    #     f.write("-\n")
-    # f.close()
-
     surroundings.sort(key=lambda x: x[0])
     chosen = False
     for move in surroundings:
         bestRatio, bestCost, bestDirection = move[:3]
-        bestRemaining = bestCost - currentSite.strength 
+        bestRemaining = bestCost - currentSite.strength
         isFriendly = move[3] == 'friendly'
 
-        if bestCost < 0 and isFriendly: # friendly tile and the tile already has a target
+        if bestCost > 0 and bestRemaining > 0:
             continue
 
-        if isFriendly: # Friendly
+        if isFriendly:
+            if bestCost < 0:
+                continue
+
             if bestCost > 0 and bestRemaining < 0: # Friendly can't handle, but with you, it can
                 chosen = move
-        else: # Enemy
+        else:
             if bestRemaining < 0: # You can handle
                 chosen = move
 
-        if chosen:
-            break
-
-    if chosen:
-        state[x][y] = chosen
-        # f = open('workfile', 'a')
-        # for s in state[x][y]:
-        #     f.write("line151: : %s\n" % s)
-        # f.close()
-        return chosen
+    return chosen
 
 def findBestRecursive(gameMap, x, y, d, count):
     global state
 
     # 10 -> 20 -> 5 (3)
-    # at 10, 
+    # at 10,
         # goes to 20
         # goes to 5, returns (r, 5, 3) to 20 --> remembers [r, 5, 3, 'enemy']
         # bestRemaining < 0, enemy -> move(3) --> remembers [r, -15, 3, 'enemy']
         # goes back to 10 with [r, -15, 3] (don't move, choose another)
 
     # at 20,
-        # cached [r, -15, 3, 'enemy'] -> 
+        # cached [r, -15, 3, 'enemy'] ->
     #---- Base cases
     newX = (x + xs[d]) % gameMap.width
     newY = (y + ys[d]) % gameMap.height
 
-    cached = state[newX][newY]
     currentSite = gameMap.getSite(Location(newX, newY))
+    if currentSite.production == 0:
+        ratio = 999.0
+    else:
+        ratio = float(currentSite.strength) / float(currentSite.production)
 
     cachedResp = False
+    cached = state[newX][newY]
     if type(cached) is not int:
-        bestRatio, bestCost, bestDirection = cached[:3]
-        bestRemaining = bestCost - currentSite.strength 
-        isFriendly = cached[3] == 'friendly'
-
-        if bestCost < 0 and isFriendly: # friendly tile and the tile already has a target
-            cachedResp = False
-
-        if isFriendly: # Friendly
-            if bestCost > 0 and bestRemaining < 0: # Friendly can't handle, but with you, it can
-                cachedResp = cached
-        else: # Enemy
-            if bestRemaining < 0: # You can handle
-                cachedResp = cached
-
-        if cachedResp:
-            return cached
-        # f.write("READING FROM CACHE FOR: (%s, %s)\n" % (x, y))
-        # f = open('workfile', 'a')
-        # for s in state[x][y]:
-        #     f.write("L101: %s\n" % s)
-        # f.close()
+        c = cached[:]
+        c[2] = d
+        return c
 
     if currentSite.owner == myID:
         if count == 0:
-            return [999.0, -1, -1, 'friendly']
+            return [999.0, -1, d, 'friendly']
     else:
-        if currentSite.production == 0:
-            ratio = 999.0
-        else:
-            ratio = float(currentSite.strength) / float(currentSite.production)
-
         state[newX][newY] = [ratio, currentSite.strength, d, 'enemy']
-
         return state[newX][newY]
     #----
 
@@ -232,39 +204,14 @@ def findBestRecursive(gameMap, x, y, d, count):
         surroundings.append(findBestRecursive(gameMap, newX, newY, pd, count-1))
 
     surroundings.sort(key=lambda x: x[0])
-    chosen = False
-    for move in surroundings:
-        bestRatio, bestCost, bestDirection = move[:3]
-        isFriendly = move[3] == 'friendly'
-        bestRemaining = bestCost - currentSite.strength
+    chosen = surroundings[0]
+    state[newX][newY] = [chosen[0], chosen[1] - currentSite.strength, d, chosen[3]]
 
-        # Friendly tile and the tile already has a target
-        if bestCost < 0 and isFriendly:
-            continue
-
-        if bestRatio == 999.0:
-            continue
-
-        if isFriendly:
-            if bestCost > 0 and bestRemaining < -1: # Friendly can't handle, but with you, it can
-                chosen = move
-        elif bestRemaining < -1: # You can handle
-            chosen = move
-
-        if chosen:
-            break
-
-    if chosen:
-        state[newX][newY] = [chosen[0], chosen[1] - currentSite.strength, d, chosen[3]]
-    else:
-        state[newX][newY] = [999.0, -1, -1, 'friendly']
-
-
+    return state[newX][newY]
     # f = open('workfile', 'a')
     # for s in state[newX][newY]:
     #     f.write("L219: %s\n" % s)
     # f.close()
-    return state[newX][newY]
 
 def findMostSurroundedKill(gameMap, x, y):
     directions = { 1: 0, 2: 0, 3: 0, 4: 0 }
@@ -277,7 +224,7 @@ def findMostSurroundedKill(gameMap, x, y):
             count = 0
             for d2 in possibleDirections:
                 if newSite.owner != myID:
-                    count += 1 
+                    count += 1
 
             directions[d] += count
 
@@ -298,16 +245,16 @@ def findAnyEmpty(gameMap, x, y):
 
 
 frameCount = 0
-
-########## NOTE NOTE NOTE NOTE NOTE NOTE
-# JUST REMEMBER THE PROPERTIES AND NOT THE DECISION
-
 while True:
     global state
     moves = []
     gameMap = getFrame()
     state = [[-1] * gameMap.height] * gameMap.width
 
+
+    f = open('workfile', 'a')
+    f.write("frame: " +str(frameCount) + "\n")
+    f.close()
     for y in range(gameMap.height):
         for x in range(gameMap.width):
             currentSite = gameMap.getSite(Location(x, y))
@@ -322,12 +269,13 @@ while True:
                         newDirection = move[2]
                         moves.append(Move(Location(x, y), newDirection))
                         movedPiece = True
-                    elif frameCount < 50:
+                    elif frameCount < 200:
                         movedPiece = True
                         moves.append(Move(Location(x, y), STILL))
                     else:
                         minProdMultiplication = 7 - (float(frameCount)/50)
-                        if currentSite.strength < currentSite.production * minProdMultiplication:
+                        # if currentSite.strength < currentSite.production * minProdMultiplication:
+                        if currentSite.strength < 100:
                             moves.append(Move(Location(x, y), STILL))
                             movedPiece = True
                         else:
